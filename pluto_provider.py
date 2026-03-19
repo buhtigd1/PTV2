@@ -35,7 +35,7 @@ class PlutoProvider(BaseProvider):
         # Region setting
         self.region = os.getenv('PLUTO_REGION', 'us').lower()
 
-        # Optimized IPs from official sources
+        # Optimized IP list
         self.x_forward = {
             "us": "185.236.200.172", "gb": "84.17.50.173", "ca": "192.206.151.131",
             "fr": "176.31.84.249", "de": "217.94.184.66", "es": "88.26.241.248",
@@ -90,7 +90,7 @@ class PlutoProvider(BaseProvider):
 
     # -----------------------------------------------------------
     def _get_categories(self, headers: dict) -> dict:
-        """Fetch actual category names for channels (Movies, Kids, etc.)"""
+        """Fetch category names (Movies, Kids, etc.)"""
         try:
             url = "https://service-channels.clusters.pluto.tv/v2/guide/categories"
             response = requests.get(url, headers=headers, timeout=self.get_timeout())
@@ -109,6 +109,7 @@ class PlutoProvider(BaseProvider):
 
     # -----------------------------------------------------------
     def get_channels(self) -> List[Dict[str, Any]]:
+
         try:
             token = self._get_session_token()
             if not token:
@@ -119,7 +120,10 @@ class PlutoProvider(BaseProvider):
             headers["authorization"] = f"Bearer {token}"
 
             response = requests.get(
-                url, params={'limit': '1000'}, headers=headers, timeout=self.get_timeout()
+                url,
+                params={'limit': '1000'},
+                headers=headers,
+                timeout=self.get_timeout()
             )
             channel_data = response.json().get("data", [])
 
@@ -141,7 +145,6 @@ class PlutoProvider(BaseProvider):
 
                 group = categories_list.get(channel_id, "Pluto TV")
 
-                sid = str(uuid.uuid4())
                 quality_suffix = (
                     "&quality=720p&deviceMake=chrome&deviceType=web&deviceModel=web"
                     "&deviceVersion=133.0.0&architecture=x86_64&buildVersion=1.0.0"
@@ -169,10 +172,23 @@ class PlutoProvider(BaseProvider):
 
     # -----------------------------------------------------------
     def generate_m3u(self, channels):
-        # ⭐ SORT MOVIES FIRST ⭐
+
+        # ⭐ CUSTOM SORT ORDER ⭐
+        group_priority = {
+            "movies": 0,
+            "news + opinion": 1,
+            "history + science":2,
+            "kids": 3
+        }
+
+        # Primary sort = these groups, secondary = alphabetical
         channels = sorted(
             channels,
-            key=lambda x: 0 if x["group"].lower() == "movies" else 1
+            key=lambda ch: (
+                group_priority.get(ch["group"].lower(), 999),
+                ch["group"].lower(),
+                ch["name"].lower()
+            )
         )
 
         m3u = (
@@ -192,7 +208,7 @@ class PlutoProvider(BaseProvider):
 
 # -----------------------------------------------------------
 def merge_master_playlist():
-    """Combines regional files & replaces categories with country names"""
+    """Combines regional lists and replaces categories with country names"""
 
     sort_config = {
         "us": {"priority": 1, "label": "United States"},
@@ -259,6 +275,7 @@ if __name__ == "__main__":
     else:
         provider = PlutoProvider()
         channels = provider.get_channels()
+
         with open(
             f"pluto_{provider.region}.m3u",
             "w",
