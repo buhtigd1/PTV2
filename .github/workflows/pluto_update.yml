@@ -39,7 +39,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes"
           else
-            git commit -m "Update Pluto: New Regions and Improved Session IPs"
+            git commit -m "Update $(date -u +'%a %b %d %T UTC %Y')"
             git pull --rebase origin main
             git push origin main
           fi
